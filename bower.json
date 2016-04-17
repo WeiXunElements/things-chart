@@ -1,0 +1,27 @@
+{
+  "name": "things-chart",
+  "homepage": "https://github.com/heartyoh/things-chart",
+  "authors": [
+    "Hatio Lab. <heartyoh@gmail.com>"
+  ],
+  "description": "",
+  "main": "things-chart-min.js",
+  "license": "MIT",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests",
+    "src",
+    "lib",
+    "DEPLOYMENT.md",
+    "DEVELOPMENT.md",
+    "things-chart.js"
+  ],
+  "dependencies": {
+    "things-scene": "^0.4.15"
+  },
+  "devDependencies": {
+  }
+}
