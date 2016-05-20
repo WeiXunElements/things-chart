@@ -8,7 +8,7 @@ Object.defineProperty(exports, "__esModule", {
 
 var _src = require('./src');
 
-var chart = _interopRequireWildcard(_src);
+var ThingsChart = _interopRequireWildcard(_src);
 
 function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj; } else { var newObj = {}; if (obj != null) { for (var key in obj) { if (Object.prototype.hasOwnProperty.call(obj, key)) newObj[key] = obj[key]; } } newObj.default = obj; return newObj; } }
 
@@ -22,7 +22,7 @@ if (typeof global !== 'undefined') {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./src":12}],2:[function(require,module,exports){
+},{"./src":13}],2:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -189,11 +189,65 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
-var Axis = function Axis() {
-  _classCallCheck(this, Axis);
-};
+var Axis = function () {
+  function Axis(config) {
+    _classCallCheck(this, Axis);
+
+    this._config = config;
+  }
+
+  _createClass(Axis, [{
+    key: "draw",
+    value: function draw() {}
+  }, {
+    key: "title",
+    get: function get() {
+      return this._title;
+    },
+    set: function set(title) {
+      this._title = title;
+    }
+
+    // get labels() {
+    //   return this._labels
+    // }
+    //
+    // set labels(labels) {
+    //   this._labels = labels
+    // }
+
+  }, {
+    key: "padding",
+    get: function get() {
+      return this._padding;
+    },
+    set: function set(padding) {
+      this._padding = padding;
+    }
+  }, {
+    key: "styles",
+    get: function get() {
+      return this._styles;
+    },
+    set: function set(styles) {
+      this._styles = styles;
+    }
+  }, {
+    key: "tickStyle",
+    get: function get() {
+      return this._tickStyle;
+    },
+    set: function set(tickStyle) {
+      this._tickStyle = tickStyle;
+    }
+  }]);
+
+  return Axis;
+}();
 
 exports.default = Axis;
 
@@ -218,9 +272,17 @@ var _series = require('./series');
 
 var _series2 = _interopRequireDefault(_series);
 
+var _title = require('./title');
+
+var _title2 = _interopRequireDefault(_title);
+
 var _legend = require('./legend');
 
 var _legend2 = _interopRequireDefault(_legend);
+
+var _control = require('./control');
+
+var _control2 = _interopRequireDefault(_control);
 
 var _slideWindow = require('./slide-window');
 
@@ -246,16 +308,165 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
+var DPPX = window.devicePixelRatio || 1;
+
 var Chart = function () {
-  function Chart(config) {
+  function Chart(config, target) {
     _classCallCheck(this, Chart);
 
     this._config = config;
+
+    this._title = _title2.default.create(config.title);
+    this._layout = _layout2.default.create(config.layout);
+    this._plotters = config.series && config.series.map(function (s) {
+      return _plotter2.default.create(s);
+    }) || [];
+    this._legend = _legend2.default.create(config.legend);
+    this._control = _control2.default.create(config.control);
+
+    if (target) {
+      // target이 문자열이면, document에서 해당 id를 가진 DOM Element를 찾는다.
+      // target은 종국에 DOM Element 이어야한다.
+      var target_element = null;
+
+      if (typeof target == 'string') {
+        // TODO uncomment followings
+        target_element = document.getElementById(target);
+        if (!target_element) throw 'target element \'' + target + '\' is not exist';
+
+        if (target_element.firstChild) throw 'target element \'' + target + '\' already has children';
+      } else {
+        target_element = target;
+      }
+
+      target_element.style.cursor = "default";
+
+      this.target = target_element;
+
+      this._resizeHandler = this.resize.bind(this);
+      window.addEventListener('resize', this._resizeHandler);
+    }
+
+    this.invalidate();
   }
 
   _createClass(Chart, [{
+    key: 'dispose',
+    value: function dispose() {
+
+      this._control = null;
+      this._legend = null;
+      this._plotters = null;
+      this._layout = null;
+      this._title = null;
+
+      // TODO Dispose를 효율적으로 처리할 수 있는 방법을 고안한다.
+      if (this._target) {
+        window.removeEventListener('resize', this._resizeHandler);
+
+        this._target.removeChild(this._canvas);
+        this._canvas = null;
+      }
+    }
+  }, {
+    key: 'resize',
+    value: function resize() {
+
+      if (this._canvas) {
+        var target = this._canvas.parentNode;
+
+        this._canvas.setAttribute('width', target.offsetWidth * DPPX);
+        this._canvas.setAttribute('height', target.offsetHeight * DPPX);
+
+        this._canvas.style.width = target.offsetWidth + 'px';
+        this._canvas.style.height = target.offsetHeight + 'px';
+
+        if (this._layout) {
+          this._layout.width = target.offsetWidth * DPPX;
+          this._layout.height = target.offsetHeight * DPPX;
+        }
+      }
+
+      this.invalidate();
+    }
+  }, {
+    key: 'invalidate',
+    value: function invalidate() {
+      this.draw();
+    }
+  }, {
+    key: '_aroundBounds',
+    value: function _aroundBounds(context, bounds, func) {
+      context.translate(bounds.left, bounds.top);
+
+      func.call(this, bounds);
+
+      context.translate(-bounds.left, -bounds.top);
+    }
+  }, {
     key: 'draw',
-    value: function draw() {}
+    value: function draw(context) {
+      var _this = this;
+
+      context = context || this.context;
+
+      this._aroundBounds(context, this.layout.titleBounds, function (bounds) {
+        _this.title.draw(context, bounds.width, bounds.height);
+      });
+
+      this._aroundBounds(context, this.layout.chartBounds, function (bounds) {
+        _this.plotters.forEach(function (plotter) {
+          return plotter.draw(context, bounds.width, bounds.height);
+        });
+      });
+
+      this._aroundBounds(context, this.layout.legendBounds, function (bounds) {
+        _this.legend.draw(context, bounds.width, bounds.height);
+      });
+
+      this._aroundBounds(context, this.layout.controlBounds, function (bounds) {
+        _this.control.draw(context, bounds.width, bounds.height);
+      });
+    }
+  }, {
+    key: 'target',
+    get: function get() {
+
+      return this._target;
+    },
+    set: function set(target) {
+
+      if (this._target) {
+        this._target.removeChild(this._canvas);
+      }
+
+      this._target = target;
+
+      if (!this._canvas) this._canvas = document.createElement('canvas');
+
+      /*
+       * 캔바스의 크기 결정 순서
+       * 1. 부모 엘리먼트의 크기에 따라 캔바스의 폭과 높이를 맞춘다.
+       * 2. 캔바스의 스타일은 무조건, 부모 엘리먼트의 100%로 한다.
+       */
+      this._canvas.setAttribute('width', target.offsetWidth * DPPX);
+      this._canvas.setAttribute('height', target.offsetHeight * DPPX);
+
+      this._canvas.style.width = target.offsetWidth + 'px';
+      this._canvas.style.height = target.offsetHeight + 'px';
+
+      this._canvas.style.position = 'absolute';
+
+      target.appendChild(this._canvas);
+
+      this._layout.width = target.offsetWidth * DPPX;
+      this._layout.height = target.offsetHeight * DPPX;
+    }
+  }, {
+    key: 'canvas',
+    get: function get() {
+      return this._canvas;
+    }
   }, {
     key: 'layout',
     get: function get() {
@@ -328,6 +539,27 @@ var Chart = function () {
     set: function set(plotters) {
       this._plotters = plotters;
     }
+  }, {
+    key: 'title',
+    get: function get() {
+      return this._title;
+    },
+    set: function set(title) {
+      this._title = title;
+    }
+  }, {
+    key: 'control',
+    get: function get() {
+      return this._control;
+    },
+    set: function set(control) {
+      this._control = control;
+    }
+  }, {
+    key: 'context',
+    get: function get() {
+      return this._canvas && this._canvas.getContext('2d');
+    }
   }]);
 
   return Chart;
@@ -335,7 +567,7 @@ var Chart = function () {
 
 exports.default = Chart;
 
-},{"./axis":6,"./cursor":10,"./data-source":11,"./layout":13,"./legend":16,"./plotter":17,"./series":23,"./slide-window":24,"./tooltip":25}],8:[function(require,module,exports){
+},{"./axis":6,"./control":10,"./cursor":11,"./data-source":12,"./layout":14,"./legend":17,"./plotter":18,"./series":24,"./slide-window":25,"./title":26,"./tooltip":27}],8:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -375,10 +607,12 @@ function _inherits(subClass, superClass) { if (typeof superClass !== "function" 
 var LineChart = function (_Chart) {
   _inherits(LineChart, _Chart);
 
-  function LineChart() {
+  function LineChart(config) {
     _classCallCheck(this, LineChart);
 
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(LineChart).apply(this, arguments));
+    return _possibleConstructorReturn(this, Object.getPrototypeOf(LineChart).call(this, config));
+
+    // TODO :
   }
 
   return LineChart;
@@ -387,6 +621,44 @@ var LineChart = function (_Chart) {
 exports.default = LineChart;
 
 },{"../chart":7}],10:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+var Control = function () {
+  _createClass(Control, null, [{
+    key: 'create',
+    value: function create(config) {
+      return new Control(config);
+    }
+  }]);
+
+  function Control(config) {
+    _classCallCheck(this, Control);
+
+    this._config = config;
+  }
+
+  _createClass(Control, [{
+    key: 'draw',
+    value: function draw(context, width, height) {
+      context.fillStyle = 'red';
+      context.fillRect(0, 0, width, height);
+    }
+  }]);
+
+  return Control;
+}();
+
+exports.default = Control;
+
+},{}],11:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -401,22 +673,43 @@ var Cursor = function Cursor() {
 
 exports.default = Cursor;
 
-},{}],11:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
 
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
-var DataSource = function DataSource() {
-  _classCallCheck(this, DataSource);
-};
+var DataSource = function () {
+  function DataSource(config) {
+    _classCallCheck(this, DataSource);
+
+    this._config = config;
+  }
+
+  _createClass(DataSource, [{
+    key: "filterBy",
+    value: function filterBy() {}
+  }, {
+    key: "fields",
+    get: function get() {
+      return this._fields;
+    },
+    set: function set(fields) {
+      this._fields = fields;
+    }
+  }]);
+
+  return DataSource;
+}();
 
 exports.default = DataSource;
 
-},{}],12:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -483,6 +776,15 @@ Object.defineProperty(exports, 'Legend', {
   enumerable: true,
   get: function get() {
     return _interopRequireDefault(_legend).default;
+  }
+});
+
+var _control = require('./control');
+
+Object.defineProperty(exports, 'Control', {
+  enumerable: true,
+  get: function get() {
+    return _interopRequireDefault(_control).default;
   }
 });
 
@@ -590,27 +892,83 @@ Object.keys(_charts).forEach(function (key) {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-},{"./animations/":4,"./area":5,"./axis":6,"./chart":7,"./charts/":8,"./cursor":10,"./data-source":11,"./layout":13,"./layouts/":15,"./legend":16,"./plotter":17,"./plotters/":19,"./point":22,"./series":23,"./slide-window":24,"./tooltip":25,"./volume":26}],13:[function(require,module,exports){
-"use strict";
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-var Layout = function Layout() {
-  _classCallCheck(this, Layout);
-};
-
-exports.default = Layout;
-
-},{}],14:[function(require,module,exports){
+},{"./animations/":4,"./area":5,"./axis":6,"./chart":7,"./charts/":8,"./control":10,"./cursor":11,"./data-source":12,"./layout":14,"./layouts/":16,"./legend":17,"./plotter":18,"./plotters/":20,"./point":23,"./series":24,"./slide-window":25,"./tooltip":27,"./volume":28}],14:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+var registry = {};
+
+var Layout = function () {
+  _createClass(Layout, null, [{
+    key: 'register',
+    value: function register(type, clazz) {
+      if (!clazz) return registry[type];
+      registry[type] = clazz;
+    }
+  }, {
+    key: 'create',
+    value: function create(config) {
+      var clazz = Layout.register(config && config.type || 'absolute');
+      return new clazz(config);
+    }
+  }]);
+
+  function Layout(config) {
+    _classCallCheck(this, Layout);
+
+    this._config = config;
+  }
+
+  _createClass(Layout, [{
+    key: 'width',
+    get: function get() {
+      return this._width;
+    },
+    set: function set(width) {
+      this._width = width;
+    }
+  }, {
+    key: 'height',
+    get: function get() {
+      return this._height;
+    },
+    set: function set(height) {
+      this._height = height;
+    }
+  }, {
+    key: 'titleBounds',
+    get: function get() {}
+  }, {
+    key: 'chartBounds',
+    get: function get() {}
+  }, {
+    key: 'legendBounds',
+    get: function get() {}
+  }, {
+    key: 'controlBounds',
+    get: function get() {}
+  }]);
+
+  return Layout;
+}();
+
+exports.default = Layout;
+
+},{}],15:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
 var _layout = require('../layout');
 
@@ -627,18 +985,66 @@ function _inherits(subClass, superClass) { if (typeof superClass !== "function" 
 var AbsoluteLayout = function (_Layout) {
   _inherits(AbsoluteLayout, _Layout);
 
-  function AbsoluteLayout() {
+  function AbsoluteLayout(config, chart) {
     _classCallCheck(this, AbsoluteLayout);
 
-    return _possibleConstructorReturn(this, Object.getPrototypeOf(AbsoluteLayout).apply(this, arguments));
+    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(AbsoluteLayout).call(this, config));
+
+    _this._config = config;
+    return _this;
   }
+
+  _createClass(AbsoluteLayout, [{
+    key: 'titleBounds',
+    get: function get() {
+      return {
+        left: 0,
+        top: 0,
+        width: this.width,
+        height: 100
+      };
+    }
+  }, {
+    key: 'chartBounds',
+    get: function get() {
+      return {
+        left: 0,
+        top: 100,
+        width: this.width,
+        height: this.height - 200
+      };
+    }
+  }, {
+    key: 'legendBounds',
+    get: function get() {
+      return {
+        left: this.width - 300,
+        top: 0,
+        width: 300,
+        height: 300
+      };
+    }
+  }, {
+    key: 'controlBounds',
+    get: function get() {
+      return {
+        left: 0,
+        top: this.height - 100,
+        width: this.width,
+        height: 100
+      };
+    }
+  }]);
 
   return AbsoluteLayout;
 }(_layout2.default);
 
 exports.default = AbsoluteLayout;
 
-},{"../layout":13}],15:[function(require,module,exports){
+
+_layout2.default.register('absolute', AbsoluteLayout);
+
+},{"../layout":14}],16:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -656,37 +1062,132 @@ Object.defineProperty(exports, 'AbsoluteLayout', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-},{"./absolute":14}],16:[function(require,module,exports){
-"use strict";
+},{"./absolute":15}],17:[function(require,module,exports){
+'use strict';
 
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
 
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
-var Legend = function Legend() {
-  _classCallCheck(this, Legend);
-};
+var Legend = function () {
+  _createClass(Legend, null, [{
+    key: 'create',
+    value: function create(config) {
+      return new Legend(config);
+    }
+  }]);
+
+  function Legend(config) {
+    _classCallCheck(this, Legend);
+
+    this._config = config;
+  }
+
+  _createClass(Legend, [{
+    key: 'draw',
+    value: function draw(context, width, height) {
+      context.fillStyle = 'blue';
+      context.fillRect(0, 0, width, height);
+    }
+  }, {
+    key: 'visible',
+    get: function get() {
+      return this._visible;
+    },
+    set: function set(visible) {
+      this._visible = visible;
+    }
+  }, {
+    key: 'direction',
+    get: function get() {
+      return this._direction;
+    },
+    set: function set(direction) {
+      this._direction = direction;
+    }
+  }, {
+    key: 'margin',
+    get: function get() {
+      return this._margin;
+    },
+    set: function set(margin) {
+      this._margin = new Margin(margin);
+    }
+  }, {
+    key: 'position',
+    get: function get() {
+      return this._position;
+    },
+    set: function set(position) {
+      this._position = position;
+    }
+  }, {
+    key: 'style',
+    get: function get() {
+      return this._style;
+    },
+    set: function set(style) {
+      this._style = style;
+    }
+  }]);
+
+  return Legend;
+}();
 
 exports.default = Legend;
 
-},{}],17:[function(require,module,exports){
-"use strict";
+},{}],18:[function(require,module,exports){
+'use strict';
 
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
 
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
-var Plotter = function Plotter() {
-  _classCallCheck(this, Plotter);
-};
+var registry = {};
+
+var Plotter = function () {
+  _createClass(Plotter, null, [{
+    key: 'register',
+    value: function register(type, clazz) {
+      if (!clazz) return registry[type];
+      registry[type] = clazz;
+    }
+  }, {
+    key: 'create',
+    value: function create(config) {
+      var clazz = Plotter.register(config && config.type || 'line');
+      return new clazz(config);
+    }
+  }]);
+
+  function Plotter(config) {
+    _classCallCheck(this, Plotter);
+
+    this._config = config;
+  }
+
+  _createClass(Plotter, [{
+    key: 'draw',
+    value: function draw(context, width, height) {
+      context.fillStyle = 'gray';
+      context.fillRect(0, 0, width, height);
+    }
+  }]);
+
+  return Plotter;
+}();
 
 exports.default = Plotter;
 
-},{}],18:[function(require,module,exports){
+},{}],19:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -719,7 +1220,10 @@ var BarPlotter = function (_Plotter) {
 
 exports.default = BarPlotter;
 
-},{"../plotter":17}],19:[function(require,module,exports){
+
+_plotter2.default.register('bar', BarPlotter);
+
+},{"../plotter":18}],20:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -755,7 +1259,7 @@ Object.defineProperty(exports, 'PiePlotter', {
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-},{"./bar":18,"./line":20,"./pie":21}],20:[function(require,module,exports){
+},{"./bar":19,"./line":21,"./pie":22}],21:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -788,7 +1292,10 @@ var LinePlotter = function (_Plotter) {
 
 exports.default = LinePlotter;
 
-},{"../plotter":17}],21:[function(require,module,exports){
+
+_plotter2.default.register('line', LinePlotter);
+
+},{"../plotter":18}],22:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -821,7 +1328,10 @@ var PiePlotter = function (_Plotter) {
 
 exports.default = PiePlotter;
 
-},{"../plotter":17}],22:[function(require,module,exports){
+
+_plotter2.default.register('pie', PiePlotter);
+
+},{"../plotter":18}],23:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -830,28 +1340,64 @@ Object.defineProperty(exports, "__esModule", {
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
-var Point = function Point() {
+var Point = function Point(config) {
   _classCallCheck(this, Point);
+
+  this._config = config;
 };
 
 exports.default = Point;
 
-},{}],23:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
 
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
-var Series = function Series() {
-  _classCallCheck(this, Series);
-};
+var Series = function () {
+  function Series(config) {
+    _classCallCheck(this, Series);
+
+    this._config = config;
+  }
+
+  _createClass(Series, [{
+    key: "labelField",
+    get: function get() {
+      return this._labelField;
+    },
+    set: function set(labelField) {
+      this._labelField = labelField;
+    }
+  }, {
+    key: "valueField",
+    get: function get() {
+      return this._valueField;
+    },
+    set: function set(valueField) {
+      this._valueField = valueField;
+    }
+  }, {
+    key: "caption",
+    get: function get() {
+      return this._caption;
+    },
+    set: function set(caption) {
+      this._caption = caption;
+    }
+  }]);
+
+  return Series;
+}();
 
 exports.default = Series;
 
-},{}],24:[function(require,module,exports){
+},{}],25:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -866,22 +1412,121 @@ var SlideWindow = function SlideWindow() {
 
 exports.default = SlideWindow;
 
-},{}],25:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
 
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
-var Tootip = function Tootip() {
-  _classCallCheck(this, Tootip);
-};
+var Title = function () {
+  _createClass(Title, null, [{
+    key: "create",
+    value: function create(config) {
+      return new Title(config);
+    }
+  }]);
+
+  function Title(config) {
+    _classCallCheck(this, Title);
+
+    this._config = config;
+  }
+
+  _createClass(Title, [{
+    key: "draw",
+    value: function draw(context, width, height) {
+      context.font = "30px Arial";
+      context.fillText("Hello World", 10, 50);
+    }
+  }, {
+    key: "align",
+    get: function get() {
+      return this._align;
+    },
+    set: function set(align) {
+      this._align = align;
+    }
+  }, {
+    key: "verticalAlign",
+    get: function get() {
+      return this._verticalAlign;
+    },
+    set: function set(verticalAlign) {
+      this._verticalAlign = verticalAlign;
+    }
+  }, {
+    key: "floating",
+    get: function get() {
+      return this._floating;
+    },
+    set: function set(floating) {
+      this._floating = floating;
+    }
+  }, {
+    key: "margin",
+    get: function get() {
+      return this._margin;
+    },
+    set: function set(margin) {
+      this._margin = new Margin(margin);
+    }
+  }, {
+    key: "style",
+    get: function get() {
+      return this._style;
+    },
+    set: function set(style) {
+      this._style = style;
+    }
+  }, {
+    key: "text",
+    get: function get() {
+      return this._text;
+    },
+    set: function set(text) {
+      this._text = text;
+    }
+  }]);
+
+  return Title;
+}();
+
+exports.default = Title;
+
+},{}],27:[function(require,module,exports){
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+var Tootip = function () {
+  function Tootip(config) {
+    _classCallCheck(this, Tootip);
+
+    this._config = config;
+  }
+
+  _createClass(Tootip, [{
+    key: "draw",
+    value: function draw() {}
+  }]);
+
+  return Tootip;
+}();
 
 exports.default = Tootip;
 
-},{}],26:[function(require,module,exports){
+},{}],28:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {

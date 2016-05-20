@@ -1,5 +1,9 @@
 export default class Legend {
 
+  static create(config) {
+    return new Legend(config)
+  }
+
   constructor(config) {
     this._config = config
   }
@@ -44,8 +48,9 @@ export default class Legend {
     this._style = style
   }
 
-  draw() {
-
+  draw(context, width, height) {
+    context.fillStyle = 'blue'
+    context.fillRect(0, 0, width, height)
   }
 
 }

@@ -1,5 +1,9 @@
 export default class Title {
 
+  static create(config) {
+    return new Title(config)
+  }
+
   constructor(config) {
     this._config = config
   }
@@ -52,8 +56,9 @@ export default class Title {
     this._text = text
   }
 
-  draw() {
-    
+  draw(context, width, height) {
+    context.font = "30px Arial";
+    context.fillText("Hello World",10,50);
   }
 
 }

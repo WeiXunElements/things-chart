@@ -1,4 +1,4 @@
-import * as chart from './src'
+import * as ThingsChart from './src'
 
 export default ThingsChart
 
