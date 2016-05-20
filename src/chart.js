@@ -11,8 +11,31 @@ import Plotter from './plotter'
 
 export default class Chart {
 
-  constructor(config) {
+  constructor(context, config) {
+
     this._config = config
+
+    // Support a jQuery'd canvas element
+		if (context.length && context[0].getContext) {
+			context = context[0];
+		}
+
+		// Support a canvas domnode
+		if (context.getContext) {
+			context = context.getContext("2d");
+		}
+
+    this._context = context
+    this._canvas = canvas
+
+  }
+
+  get context(){
+    return this._context
+  }
+
+  get canvas() {
+    return this._canvas
   }
 
   get layout() {
