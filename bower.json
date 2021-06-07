@@ -1,8 +1,7 @@
 {
   "name": "things-chart",
-  "homepage": "https://github.com/heartyoh/things-chart",
   "authors": [
-    "Hatio Lab. <heartyoh@gmail.com>"
+    "Shenzhen Weixun"
   ],
   "description": "",
   "main": "things-chart-min.js",
